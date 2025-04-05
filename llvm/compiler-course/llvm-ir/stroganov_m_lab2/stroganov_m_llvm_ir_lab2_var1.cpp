@@ -13,16 +13,23 @@ struct FmuladdPass : llvm::PassInfoMixin<FmuladdPass> {
     for (auto &BB : F) {
       for (auto &I : make_early_inc_range(BB)){
         if (auto *AddOp = llvm::dyn_cast<llvm::BinaryOperator>(&I)){
-          if (AddOp->getOpcode() != llvm::Instruction::FAdd) continue;
+          if (AddOp->getOpcode() != llvm::Instruction::FAdd)
+            continue;
           for (unsigned i = 0; i < 2; ++i){
-            if (auto *MultiplyOp = llvm::dyn_cast<llvm::BinaryOperator>(AddOp->getOperand(i))) {
-              if (MultiplyOp->getOpcode() == llvm::Instruction::FMul && MultiplyOp->hasOneUse()) {
+            if (auto *MultiplyOp = llvm::dyn_cast<llvm::BinaryOperator>(
+                    AddOp->getOperand(i))) {
+              if (MultiplyOp->getOpcode() == llvm::Instruction::FMul &&
+                  MultiplyOp->hasOneUse()) {
                 llvm::IRBuilder<> Builder(AddOp);
-                llvm::Value *FMA = Builder.CreateIntrinsic(llvm::Intrinsic::fmuladd, {MultiplyOp->getType()},
-                                                     {MultiplyOp->getOperand(0), MultiplyOp->getOperand(1), AddOp->getOperand(1 - i)}, nullptr, "fma");
+                llvm::Value *FMA = Builder.CreateIntrinsic(
+                    llvm::Intrinsic::fmuladd, {MultiplyOp->getType()},
+                    {MultiplyOp->getOperand(0), MultiplyOp->getOperand(1),
+                     AddOp->getOperand(1 - i)},
+                    nullptr, "fma");
                 AddOp->replaceAllUsesWith(FMA);
                 AddOp->eraseFromParent();
-                if (MultiplyOp->use_empty()) MultiplyOp->eraseFromParent();
+                if (MultiplyOp->use_empty())
+                  MultiplyOp->eraseFromParent();
                 Changed = true;
                 break;
               }
@@ -30,7 +37,6 @@ struct FmuladdPass : llvm::PassInfoMixin<FmuladdPass> {
           }
         }
       }
-
     }
     return Changed ? llvm::PreservedAnalyses::none()
                    : llvm::PreservedAnalyses::all();
