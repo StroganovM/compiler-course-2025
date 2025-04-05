@@ -11,11 +11,11 @@ struct FmuladdPass : llvm::PassInfoMixin<FmuladdPass> {
                               llvm::FunctionAnalysisManager &) {
     bool Changed = false;
     for (auto &BB : F) {
-      for (auto &I : make_early_inc_range(BB)){
-        if (auto *AddOp = llvm::dyn_cast<llvm::BinaryOperator>(&I)){
+      for (auto &I : make_early_inc_range(BB)) {
+        if (auto *AddOp = llvm::dyn_cast<llvm::BinaryOperator>(&I)) {
           if (AddOp->getOpcode() != llvm::Instruction::FAdd)
             continue;
-          for (unsigned i = 0; i < 2; ++i){
+          for (unsigned i = 0; i < 2; ++i) {
             if (auto *MultiplyOp = llvm::dyn_cast<llvm::BinaryOperator>(
                     AddOp->getOperand(i))) {
               if (MultiplyOp->getOpcode() == llvm::Instruction::FMul &&
