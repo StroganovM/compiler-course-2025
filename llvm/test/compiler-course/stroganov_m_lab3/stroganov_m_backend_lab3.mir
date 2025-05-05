@@ -81,16 +81,7 @@
     %3 = bitcast <4 x i32> %xor.i to <4 x float>
     ret <4 x float> %3
   }
-  
-  ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none) uwtable
-  define dso_local noundef <4 x float> @_Z22test_or_with_selfDv4_f(<4 x float> noundef %a) local_unnamed_addr #0 {
-  entry:
-    %0 = bitcast <4 x float> %a to <4 x i32>
-    %or.i = or <4 x i32> %0, %0
-    %1 = bitcast <4 x i32> %or.i to <4 x float>
-    ret <4 x float> %1
-  }
-  
+
 ...
 ---
   
@@ -399,72 +390,3 @@ body:             |
     $xmm0 = COPY %5
     RET 0, $xmm0
 
-...
----
-# CHECK-LABEL: name: _Z22test_or_with_selfDv4_f
-name:            _Z22test_or_with_selfDv4_f
-alignment:       16
-exposesReturnsTwice: false
-legalized:       false
-regBankSelected: false
-selected:        false
-failedISel:      false
-tracksRegLiveness: true
-hasWinCFI:       false
-callsEHReturn:   false
-callsUnwindInit: false
-hasEHCatchret:   false
-hasEHScopes:     false
-hasEHFunclets:   false
-isOutlined:      false
-debugInstrRef:   true
-failsVerification: false
-tracksDebugUserValues: true
-registers:
-  - { id: 0, class: vr128 }
-  - { id: 1, class: vr128 }
-liveins:
-  - { reg: '$xmm0', virtual-reg: '%0' }
-frameInfo:
-  isFrameAddressTaken: false
-  isReturnAddressTaken: false
-  hasStackMap:     false
-  hasPatchPoint:   false
-  stackSize:       0
-  offsetAdjustment: 0
-  maxAlignment:    1
-  adjustsStack:    false
-  hasCalls:        false
-  stackProtector:  ''
-  functionContext: ''
-  maxCallFrameSize: 0
-  cvBytesOfCalleeSavedRegisters: 0
-  hasOpaqueSPAdjustment: false
-  hasVAStart:      false
-  hasMustTailInVarArgFunc: false
-  hasTailCall:     false
-  isCalleeSavedInfoValid: true
-  localFrameSize:  0
-  savePoint:       ''
-  restorePoint:    ''
-fixedStack:      []
-stack:           []
-entry_values:    []
-callSites:       []
-debugValueSubstitutions: []
-constants:       []
-machineFunctionInfo:
-  amxProgModel:    None
-body:             |
-  bb.0.entry:
-    liveins: $xmm0
-
-    ; CHECK: %0:vr128 = COPY $xmm0
-    ; CHECK-NEXT: %1:vr128 = COPY %0
-    ; CHECK-NEXT: $xmm0 = COPY %1
-    ; CHECK-NEXT: RET 0, $xmm0
-
-    %0:vr128 = COPY $xmm0
-    %1:vr128 = PORrr %0, %0
-    $xmm0 = COPY %1
-    RET 0, $xmm0

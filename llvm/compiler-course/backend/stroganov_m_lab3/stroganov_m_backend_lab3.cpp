@@ -18,77 +18,80 @@ public:
   X86LogicOptPass() : MachineFunctionPass(ID) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
-    const auto *TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
+    const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
     MachineRegisterInfo &MRI = MF.getRegInfo();
     bool Changed = false;
 
-    DenseMap<unsigned, unsigned> AVXOpcodeMap = {
-      { X86::PANDrr,   X86::VPANDrr },
-      { X86::PORrr,    X86::VPORrr },
-      { X86::PXORrr,   X86::VPXORrr },
-      { X86::ANDPSrr,  X86::VANDPSrr },
-      { X86::ORPSrr,   X86::VORPSrr },
-      { X86::XORPSrr,  X86::VXORPSrr }
+    // Только указанные операции
+    const DenseMap<unsigned, unsigned> AVXOpcodeMap = {
+      {X86::PANDrr,   X86::VPANDrr},
+      {X86::PORrr,    X86::VPORrr},
+      {X86::PXORrr,   X86::VPXORrr},
+      {X86::ANDPSrr,  X86::VANDPSrr},
+      {X86::ORPSrr,   X86::VORPSrr},
+      {X86::XORPSrr,  X86::VXORPSrr},
+      {X86::PANDNrr,  X86::VPANDNrr}
     };
 
-    auto isLogicOp = [&](unsigned Opc) {
-      return AVXOpcodeMap.count(Opc);
+    auto convertToAVX = [&](MachineInstr &MI, MachineBasicBlock &MBB, 
+                           MachineBasicBlock::iterator &MII) -> bool {
+      unsigned NewOpc = AVXOpcodeMap.lookup(MI.getOpcode());
+      if (!NewOpc || MI.getNumOperands() < 3) return false;
+
+      Register Dest = MI.getOperand(0).getReg();
+      Register Src1 = MI.getOperand(1).getReg();
+      Register Src2 = MI.getOperand(2).getReg();
+
+      BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(NewOpc), Dest)
+          .addReg(Src1)
+          .addReg(Src2);
+      return true;
     };
 
     for (MachineBasicBlock &MBB : MF) {
-      for (auto MII = MBB.begin(); MII != MBB.end(); ) {
+      for (auto MII = MBB.begin(), MIE = MBB.end(); MII != MIE; ) {
         MachineInstr &MI = *MII;
         unsigned Opc = MI.getOpcode();
 
-        if (Opc == X86::PORrr || Opc == X86::ORPSrr || Opc == X86::VPORrr || Opc == X86::VORPSrr) {
-          Register Dest = MI.getOperand(0).getReg();
-          Register Src1 = MI.getOperand(1).getReg();
-          Register Src2 = MI.getOperand(2).getReg();
-          
-          if (Src1 == Src2) {
-            BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(TargetOpcode::COPY), Dest)
-                .addReg(Src1);
-            MI.eraseFromParent();
-            Changed = true;
-            MII = MBB.begin();
-            continue;
-          }
+        if (!AVXOpcodeMap.count(Opc)) {
+          ++MII;
+          continue;
         }
-        
-        if (Opc == X86::PANDrr || Opc == X86::ANDPSrr || Opc == X86::VPANDrr || Opc == X86::VANDPSrr) {
-          Register Dest = MI.getOperand(0).getReg();
-          Register Src1 = MI.getOperand(1).getReg();
-          MachineOperand &Src2Op = MI.getOperand(2);
-		  
-          if (Src2Op.isImm() && Src2Op.getImm() == 0) {
-            BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(TargetOpcode::COPY), Dest)
-                .addImm(0);
-            MI.eraseFromParent();
-            Changed = true;
-            MII = MBB.begin();
-            continue;
+
+        // Попытка слияния цепочки операций
+        if (MI.getNumOperands() >= 2 && MI.getOperand(1).isReg()) {
+          Register IntermediateReg = MI.getOperand(1).getReg();
+          MachineInstr *DefMI = MRI.getUniqueVRegDef(IntermediateReg);
+
+          if (DefMI && MRI.hasOneUse(IntermediateReg) && AVXOpcodeMap.count(DefMI->getOpcode())) {
+            // Сохраняем следующую позицию перед изменениями
+            auto NextII = std::next(MII);
+            
+            // Преобразуем первую инструкцию
+            auto DefII = MachineBasicBlock::iterator(DefMI);
+            if (convertToAVX(*DefMI, MBB, DefII)) {
+              MBB.erase(DefMI);
+              Changed = true;
+            }
+
+            // Преобразуем текущую инструкцию
+            if (convertToAVX(MI, MBB, MII)) {
+              MII = MBB.erase(MII);
+              Changed = true;
+              continue;
+            }
+            
+            MII = NextII;
           }
         }
 
-        if (isLogicOp(Opc)) {
-          if (auto AVXOpc = AVXOpcodeMap.lookup(Opc)) {
-            Register Dest = MI.getOperand(0).getReg();
-            Register Src1 = MI.getOperand(1).getReg();
-            Register Src2 = MI.getOperand(2).getReg();
-            
-            DebugLoc DL = MI.getDebugLoc();
-            BuildMI(MBB, MII, DL, TII->get(AVXOpc), Dest)
-                .addReg(Src1)
-                .addReg(Src2);
-            
-            MI.eraseFromParent();
-            Changed = true;
-            MII = MBB.begin();
-            continue;
-          }
+        // Обычное преобразование одиночной инструкции
+        if (convertToAVX(MI, MBB, MII)) {
+          MII = MBB.erase(MII);
+          Changed = true;
+        } else {
+          ++MII;
         }
-
-        ++MII;
       }
     }
 
@@ -100,5 +103,5 @@ char X86LogicOptPass::ID = 0;
 } // namespace
 
 static llvm::RegisterPass<X86LogicOptPass>
-    X("x86-logic-opt", "X86 Logical Operations Optimization Pass", false,
-      false);
+    X("x86-logic-opt", "X86 Logical Operations Optimization Pass", false, false);
+
