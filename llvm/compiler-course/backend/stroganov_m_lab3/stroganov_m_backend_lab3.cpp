@@ -22,10 +22,10 @@ public:
     bool Changed = false;
 
     const DenseMap<unsigned, unsigned> AVXOpcodeMap = {
-        {X86::PANDrr,   X86::VPANDrr},  {X86::PORrr,    X86::VPORrr},
-        {X86::PXORrr,   X86::VPXORrr},  {X86::ANDPSrr,  X86::VANDPSrr},
-        {X86::ORPSrr,   X86::VORPSrr},  {X86::XORPSrr,  X86::VXORPSrr},
-        {X86::PANDNrr,  X86::VPANDNrr}};
+        {X86::PANDrr, X86::VPANDrr},  {X86::PORrr, X86::VPORrr},
+        {X86::PXORrr, X86::VPXORrr},  {X86::ANDPSrr, X86::VANDPSrr},
+        {X86::ORPSrr, X86::VORPSrr},  {X86::XORPSrr, X86::VXORPSrr},
+        {X86::PANDNrr, X86::VPANDNrr}};
 
     auto convertToAVX = [&](MachineInstr &MI, MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator &MII) -> bool {
@@ -96,4 +96,3 @@ char X86LogicOptPass::ID = 0;
 static llvm::RegisterPass<X86LogicOptPass>
     X("x86-logic-opt", "X86 Logical Operations Optimization Pass", false,
       false);
-
