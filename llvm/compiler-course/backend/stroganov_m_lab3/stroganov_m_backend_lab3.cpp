@@ -34,8 +34,8 @@ public:
     };
 
     auto convertToAVX = [&](MachineInstr &MI, MachineBasicBlock &MBB, 
-                           MachineBasicBlock::iterator &MII) -> bool {
-      unsigned NewOpc = AVXOpcodeMap.lookup(MI.getOpcode());
+                       MachineBasicBlock::iterator &MII) -> bool {
+      auto NewOpc = AVXOpcodeMap.lookup(MI.getOpcode());
       if (!NewOpc || MI.getNumOperands() < 3) return false;
 
       Register Dest = MI.getOperand(0).getReg();
@@ -95,7 +95,7 @@ public:
       }
     }
 
-    return Changed;
+    return Changed;	
   }
 };
 
