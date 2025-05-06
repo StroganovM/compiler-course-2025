@@ -22,25 +22,11 @@ public:
     bool Changed = false;
 
     const DenseMap<unsigned, unsigned> AVXOpcodeMap = {
-        {X86::PANDrr, X86::VPANDrr},  {X86::PORrr, X86::VPORrr},
-        {X86::PXORrr, X86::VPXORrr},  {X86::ANDPSrr, X86::VANDPSrr},
-        {X86::ORPSrr, X86::VORPSrr},  {X86::XORPSrr, X86::VXORPSrr},
-        {X86::PANDNrr, X86::VPANDNrr}};
-
-    auto convertToAVX = [&](MachineInstr &MI, MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator &MII) -> bool {
-      auto NewOpc = AVXOpcodeMap.lookup(MI.getOpcode());
-      if (!NewOpc || MI.getNumOperands() < 3)
-        return false;
-
-      Register Dest = MI.getOperand(0).getReg();
-      Register Src1 = MI.getOperand(1).getReg();
-      Register Src2 = MI.getOperand(2).getReg();
-
-      BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(NewOpc), Dest)
-          .addReg(Src1)
-          .addReg(Src2);
-      return true;
+        {X86::PANDrr, X86::VPANDrr},     {X86::PORrr, X86::VPORrr},
+        {X86::PXORrr, X86::VPXORrr},     {X86::ANDPSrr, X86::VANDPSrr},
+        {X86::ORPSrr, X86::VORPSrr},     {X86::XORPSrr, X86::VXORPSrr},
+        {X86::PANDNrr, X86::VPANDNrr},   {X86::ANDPDrr, X86::VANDPDrr},
+        {X86::ORPDrr, X86::VORPDrr},     {X86::XORPDrr, X86::VXORPDrr},
     };
 
     for (MachineBasicBlock &MBB : MF) {
@@ -48,40 +34,49 @@ public:
         MachineInstr &MI = *MII;
         unsigned Opc = MI.getOpcode();
 
-        if (!AVXOpcodeMap.count(Opc)) {
-          ++MII;
-          continue;
-        }
+        bool Combined = false;
 
-        if (MI.getNumOperands() >= 2 && MI.getOperand(1).isReg()) {
-          Register IntermediateReg = MI.getOperand(1).getReg();
-          MachineInstr *DefMI = MRI.getUniqueVRegDef(IntermediateReg);
+        if (MI.getNumOperands() >= 3 && MI.getOperand(1).isReg()) {
+          Register Op1 = MI.getOperand(1).getReg();
+          MachineInstr *DefMI = MRI.getUniqueVRegDef(Op1);
 
-          if (DefMI && MRI.hasOneUse(IntermediateReg) &&
-              AVXOpcodeMap.count(DefMI->getOpcode())) {
-            auto NextII = std::next(MII);
+          if (DefMI && MRI.hasOneUse(Op1) &&
+              DefMI->getNumOperands() >= 3 &&
+              AVXOpcodeMap.count(DefMI->getOpcode()) &&
+              AVXOpcodeMap.count(Opc)) {
 
-            auto DefII = MachineBasicBlock::iterator(DefMI);
-            if (convertToAVX(*DefMI, MBB, DefII)) {
-              MBB.erase(DefMI);
-              Changed = true;
-            }
+            unsigned AVXOpc1 = AVXOpcodeMap.lookup(DefMI->getOpcode());
+            unsigned AVXOpc2 = AVXOpcodeMap.lookup(Opc);
 
-            if (convertToAVX(MI, MBB, MII)) {
-              MII = MBB.erase(MII);
-              Changed = true;
-              continue;
-            }
+            Register TmpReg = MRI.createVirtualRegister(MRI.getRegClass(Op1));
 
-            MII = NextII;
+            BuildMI(MBB, MII, DefMI->getDebugLoc(), TII->get(AVXOpc1), TmpReg)
+                .addReg(DefMI->getOperand(1).getReg())
+                .addReg(DefMI->getOperand(2).getReg());
+
+            BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(AVXOpc2), MI.getOperand(0).getReg())
+                .addReg(TmpReg)
+                .addReg(MI.getOperand(2).getReg());
+
+
+            MBB.erase(DefMI);
+            MII = MBB.erase(MII);
+            Changed = true;
+            Combined = true;
           }
         }
 
-        if (convertToAVX(MI, MBB, MII)) {
-          MII = MBB.erase(MII);
-          Changed = true;
-        } else {
-          ++MII;
+        if (!Combined) {
+          if (AVXOpcodeMap.count(Opc) && MI.getNumOperands() >= 3) {
+            unsigned NewOpc = AVXOpcodeMap.lookup(Opc);
+            BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(NewOpc), MI.getOperand(0).getReg())
+                .addReg(MI.getOperand(1).getReg())
+                .addReg(MI.getOperand(2).getReg());
+            MII = MBB.erase(MII);
+            Changed = true;
+          } else {
+            ++MII;
+          }
         }
       }
     }
