@@ -35,7 +35,7 @@ public:
         unsigned Opc = MI.getOpcode();
 
         auto AVXIter = AVXOpcodeMap.find(Opc);
-        if (AVXIter != AVXOpcodeMap.end()){
+        if (AVXIter != AVXOpcodeMap.end()) {
           BuildMI(MBB, MII, MI.getDebugLoc(), TII->get(AVXIter->second),
                   MI.getOperand(0).getReg())
               .addReg(MI.getOperand(1).getReg())
