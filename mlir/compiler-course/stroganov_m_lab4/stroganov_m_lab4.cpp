@@ -29,17 +29,17 @@ public:
     if (!func.lookupSymbol<func::FuncOp>("trace_loop_iter_begin")) {
       builder.setInsertionPointToStart(func.getBody());
       builder
-          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_begin", 
+          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_begin",
                                 builder.getFunctionType({}, {}))
-        .setPrivate();
+          .setPrivate();
     }
 
     if (!func.lookupSymbol<func::FuncOp>("trace_loop_iter_end")) {
       builder.setInsertionPointToStart(func.getBody());
       builder
-          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_end", 
+          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_end",
                                 builder.getFunctionType({}, {}))
-        .setPrivate();
+          .setPrivate();
     }
 
     func.walk([&](Operation *op) {
