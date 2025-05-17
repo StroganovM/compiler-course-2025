@@ -10,7 +10,8 @@ using namespace mlir;
 
 namespace {
 
-class InsertLoopTracePass : public PassWrapper<InsertLoopTracePass, OperationPass<ModuleOp>> {
+class InsertLoopTracePass
+    : public PassWrapper<InsertLoopTracePass, OperationPass<ModuleOp>> {
 public:
   StringRef getArgument() const final {
     return "InsertLoopTracePass_Stroganov_Mikhail_FIIT2_MLIR";
@@ -27,22 +28,23 @@ public:
 
     if (!func.lookupSymbol<func::FuncOp>("trace_loop_iter_begin")) {
       builder.setInsertionPointToStart(func.getBody());
-      builder.create<func::FuncOp>(
-          func.getLoc(), "trace_loop_iter_begin", 
-          builder.getFunctionType({}, {}))
+      builder
+          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_begin", 
+                                builder.getFunctionType({}, {}))
         .setPrivate();
     }
 
     if (!func.lookupSymbol<func::FuncOp>("trace_loop_iter_end")) {
       builder.setInsertionPointToStart(func.getBody());
-      builder.create<func::FuncOp>(
-          func.getLoc(), "trace_loop_iter_end", 
-          builder.getFunctionType({}, {}))
+      builder
+          .create<func::FuncOp>(func.getLoc(), "trace_loop_iter_end", 
+                                builder.getFunctionType({}, {}))
         .setPrivate();
     }
 
     func.walk([&](Operation *op) {
-      if (isa<affine::AffineForOp, scf::ForOp, scf::WhileOp, scf::ParallelOp>(op)) {
+      if (isa<affine::AffineForOp, scf::ForOp, scf::WhileOp, scf::ParallelOp>(
+              op)) {
         if (auto forOp = dyn_cast<affine::AffineForOp>(op)) {
           insertTrace(forOp.getBody(), ctx, builder);
         } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
@@ -61,12 +63,13 @@ private:
   void insertTrace(Block *block, MLIRContext *ctx, OpBuilder &builder) {
     builder.setInsertionPointToStart(block);
     builder.create<func::CallOp>(block->getParentOp()->getLoc(),
-                                 "trace_loop_iter_begin", TypeRange(), ValueRange{});
+                                 "trace_loop_iter_begin", TypeRange(),
+                                 ValueRange{});
 
     Operation *terminator = block->getTerminator();
     builder.setInsertionPoint(terminator);
-    builder.create<func::CallOp>(terminator->getLoc(),
-                                 "trace_loop_iter_end", TypeRange(), ValueRange{});
+    builder.create<func::CallOp>(terminator->getLoc(), "trace_loop_iter_end",
+                                 TypeRange(), ValueRange{});
   }
 };
 } // namespace
